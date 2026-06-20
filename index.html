@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>WorkTrack</title>
-<script src="https://accounts.google.com/gsi/client" async></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap');
 
@@ -13,42 +15,38 @@
   --paper:#F6F3EC; --card:#FFFFFF;
   --gold:#C8943D; --teal:#1F8A70; --red:#B6452C;
   --line:#E3DDCF; --ink:#101C2C; --ink-soft:#5B6573;
-  --error:#B6452C; --error-bg:#FDF1EE;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{margin:0;background:var(--paper);font-family:'Inter',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;}
 
-/* ── Auth / gate screens ── */
-.gate{
-  display:flex;flex-direction:column;justify-content:center;align-items:center;
-  min-height:100vh;padding:24px 20px;
-  padding-top:calc(24px + env(safe-area-inset-top));
-  padding-bottom:calc(24px + env(safe-area-inset-bottom));
-}
+/* ── Gate / auth screens ── */
+.gate{display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:100vh;padding:24px 20px;padding-top:calc(24px + env(safe-area-inset-top));padding-bottom:calc(24px + env(safe-area-inset-bottom));}
 .gate-card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px 22px;width:100%;max-width:420px;}
 .gate-card .logo{font-family:'Fraunces',serif;font-size:28px;font-weight:600;color:var(--navy);margin:0 0 4px;}
 .gate-card .tagline{color:var(--ink-soft);font-size:13px;margin-bottom:24px;}
 .gate-card .note{color:var(--ink-soft);font-size:12px;line-height:1.6;margin-top:14px;}
-.gate-card .note a{color:var(--navy);text-decoration:underline;}
-.gate-card .note code{background:#f0ece3;padding:1px 5px;border-radius:4px;font-size:11px;}
 
-/* Google sign-in area */
-.g-btn-wrap{display:flex;justify-content:center;margin:8px 0;}
-.g-avatar{width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--line);}
+.google-btn{
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  width:100%;padding:14px;border:1.5px solid var(--line);border-radius:12px;
+  background:#fff;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;
+  color:var(--ink);cursor:pointer;transition:border-color .15s, box-shadow .15s;
+}
+.google-btn:hover{border-color:#aaa;box-shadow:0 2px 8px rgba(0,0,0,0.08);}
+.google-btn:active{transform:scale(0.98);}
+.google-btn svg{width:20px;height:20px;flex-shrink:0;}
 
 /* ── App shell ── */
 .app{max-width:480px;margin:0 auto;min-height:100vh;background:var(--paper);display:flex;flex-direction:column;}
-.topbar{
-  background:var(--navy);color:#fff;
-  padding:16px 18px 12px;
-  padding-top:calc(16px + env(safe-area-inset-top));
-  position:sticky;top:0;z-index:5;
-  display:flex;justify-content:space-between;align-items:center;
-}
+.topbar{background:var(--navy);color:#fff;padding:16px 18px 12px;padding-top:calc(16px + env(safe-area-inset-top));position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;}
 .topbar .left .brand{font-family:'Fraunces',serif;font-size:20px;font-weight:600;}
-.topbar .left .sub{font-size:10px;color:#A9B4C4;margin-top:2px;font-family:'IBM Plex Mono',monospace;letter-spacing:0.5px;}
+.topbar .left .sub{font-size:10px;color:#A9B4C4;margin-top:2px;font-family:'IBM Plex Mono',monospace;letter-spacing:0.5px;display:flex;align-items:center;gap:6px;}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:#A9B4C4;display:inline-block;transition:background .3s;}
+.sync-dot.live{background:#4ade80;}
+.sync-dot.saving{background:var(--gold);animation:pulse .8s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
 .topbar .right img{width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);cursor:pointer;}
-.topbar .right .avatar-placeholder{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;}
+.topbar .right .avatar-ph{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;cursor:pointer;}
 
 main{flex:1;padding:14px 14px 100px;}
 
@@ -90,18 +88,12 @@ main{flex:1;padding:14px 14px 100px;}
 /* ── Form fields ── */
 .field{margin-bottom:14px;}
 .field label{font-size:12px;color:var(--ink-soft);font-weight:600;display:block;margin-bottom:5px;}
-.field input,.field select{
-  width:100%;padding:13px 14px;border:1.5px solid var(--line);border-radius:10px;
-  font-family:'Inter',sans-serif;font-size:16px;background:#fff;color:var(--ink);
-  -webkit-appearance:none;transition:border-color .15s;
-}
+.field input,.field select{width:100%;padding:13px 14px;border:1.5px solid var(--line);border-radius:10px;font-family:'Inter',sans-serif;font-size:16px;background:#fff;color:var(--ink);-webkit-appearance:none;transition:border-color .15s;}
 .field input:focus,.field select:focus{outline:none;border-color:var(--navy);}
-.field input.err,.field select.err{border-color:var(--error);background:var(--error-bg);}
-.field .err-msg{font-size:11.5px;color:var(--error);margin-top:4px;display:none;}
+.field .err-msg{font-size:11.5px;color:var(--red);margin-top:4px;display:none;}
 .field.has-err .err-msg{display:block;}
-.field.has-err input,.field.has-err select{border-color:var(--error);background:var(--error-bg);}
+.field.has-err input,.field.has-err select{border-color:var(--red);background:#FDF1EE;}
 
-/* Legacy plain inputs (clock page info display) */
 .muted{color:var(--ink-soft);font-size:12.5px;}
 .hidden{display:none !important;}
 
@@ -148,53 +140,46 @@ nav button.active{color:var(--navy);font-weight:700;}
 /* ── Toast ── */
 #toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:500;z-index:50;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── Loading spinner ── */
+#loadingScreen{position:fixed;inset:0;background:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;}
+#loadingScreen .brand{font-family:'Fraunces',serif;font-size:32px;font-weight:600;color:var(--navy);margin-bottom:20px;}
+.spinner{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--navy);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
 
-<!-- ── Client ID setup (first-ever launch) ── -->
-<div id="clientIdScreen" class="gate hidden">
+<!-- Loading -->
+<div id="loadingScreen">
+  <div class="brand">WorkTrack</div>
+  <div class="spinner"></div>
+</div>
+
+<!-- Sign-in -->
+<div id="signInScreen" class="gate hidden">
   <div class="gate-card">
     <div class="logo">WorkTrack</div>
-    <div class="tagline">Set up Google Sign-In to protect your data</div>
-    <div class="field" id="f-clientId">
-      <label>Google OAuth Client ID</label>
-      <input id="clientIdInput" placeholder="xxxx.apps.googleusercontent.com" autocomplete="off" autocorrect="off" spellcheck="false">
-      <div class="err-msg">Please enter your Google Client ID</div>
-    </div>
-    <button class="btn btn-primary" onclick="saveClientId()">Continue</button>
-    <div class="note">
-      To get a Client ID:<br>
-      1. Go to <a href="https://console.cloud.google.com" target="_blank">Google Cloud Console</a><br>
-      2. Create a project → APIs &amp; Services → Credentials<br>
-      3. Create OAuth 2.0 Client ID (Web application)<br>
-      4. Add your site URL to <strong>Authorised JavaScript origins</strong><br>
-      5. Copy the Client ID (ends in <code>.apps.googleusercontent.com</code>) and paste above
-    </div>
+    <div class="tagline">Your personal payroll &amp; timesheet tracker</div>
+    <button class="google-btn" onclick="signInWithGoogle()">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <div id="signInError" class="hidden" style="margin-top:14px;font-size:13px;color:var(--red);text-align:center;"></div>
+    <div class="note" style="text-align:center;">Your data is synced securely across all your devices.</div>
   </div>
 </div>
 
-<!-- ── Google sign-in gate ── -->
-<div id="signInScreen" class="gate hidden">
-  <div class="gate-card" style="text-align:center;">
-    <div class="logo">WorkTrack</div>
-    <div class="tagline" style="margin-bottom:20px;">Sign in to access your timesheet</div>
-    <div class="g-btn-wrap">
-      <div id="googleBtn"></div>
-    </div>
-    <div id="signInError" class="hidden" style="margin-top:14px;font-size:13px;color:var(--red);"></div>
-    <div class="note" style="margin-top:18px;">
-      Only your authorised Google account can unlock this app.<br>
-      <span id="authorisedHint" style="display:none;">Authorised: <strong id="authorisedEmail"></strong></span>
-    </div>
-  </div>
-</div>
-
-<!-- ── Profile setup (first login) ── -->
+<!-- Profile setup (first sign-in) -->
 <div id="profileSetupScreen" class="gate hidden">
   <div class="gate-card">
-    <div class="logo">One more thing</div>
-    <div class="tagline">Set your pay details</div>
+    <div class="logo">Almost ready</div>
+    <div class="tagline">Set your pay details to get started</div>
     <div class="field" id="f-setupName">
       <label>Your name</label>
       <input id="setupName" autocomplete="given-name">
@@ -210,11 +195,11 @@ nav button.active{color:var(--navy);font-weight:700;}
       <input id="setupLimit" type="number" inputmode="decimal" placeholder="25">
       <div class="err-msg">Enter hours greater than 0</div>
     </div>
-    <div class="field" id="f-setupEmployer">
+    <div class="field">
       <label>Employer name <span style="color:var(--ink-soft);font-weight:400;">(optional)</span></label>
       <input id="setupEmployer" autocomplete="organization">
     </div>
-    <div class="field" id="f-setupWorkplace">
+    <div class="field">
       <label>Workplace / location <span style="color:var(--ink-soft);font-weight:400;">(optional)</span></label>
       <input id="setupWorkplace">
     </div>
@@ -222,12 +207,15 @@ nav button.active{color:var(--navy);font-weight:700;}
   </div>
 </div>
 
-<!-- ── Main app ── -->
+<!-- Main app -->
 <div class="app hidden" id="appRoot">
   <div class="topbar">
     <div class="left">
       <div class="brand">WorkTrack</div>
-      <div class="sub" id="topSub">WEEK OF —</div>
+      <div class="sub" id="topSub">
+        <span class="sync-dot" id="syncDot"></span>
+        <span id="syncLabel">WEEK OF —</span>
+      </div>
     </div>
     <div class="right" id="topAvatar"></div>
   </div>
@@ -246,7 +234,25 @@ nav button.active{color:var(--navy);font-weight:700;}
 
 <script>
 // ──────────────────────────────────────────────
-// Storage
+// Firebase init
+// ──────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyAv7SxlzgPMduXfIDGm7Naai-9vqSBteHI",
+  authDomain: "worktrack-2cc2c.firebaseapp.com",
+  projectId: "worktrack-2cc2c",
+  storageBucket: "worktrack-2cc2c.firebasestorage.app",
+  messagingSenderId: "750750298477",
+  appId: "1:750750298477:web:07cedff49caf836d556a64"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// Enable offline persistence (works on HTTPS / GitHub Pages)
+db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+
+// ──────────────────────────────────────────────
+// Local cache
 // ──────────────────────────────────────────────
 const LS = {
   get(k){ try{ return JSON.parse(localStorage.getItem(k)); }catch(e){ return null; } },
@@ -257,208 +263,199 @@ const LS = {
 // ──────────────────────────────────────────────
 // App state
 // ──────────────────────────────────────────────
-let PROFILE     = LS.get('wt_profile')  || { hourlyRate:24, weeklyLimit:25, employeeName:'', employerName:'', workplace:'' };
-let ENTRIES     = LS.get('wt_entries')  || [];
-let PAYMENTS    = LS.get('wt_payments') || [];
-let activeEntry = LS.get('wt_active')   || null;
+let PROFILE     = { hourlyRate:24, weeklyLimit:25, employeeName:'', employerName:'', workplace:'' };
+let ENTRIES     = [];
+let PAYMENTS    = [];
+let activeEntry = null;
+let GOOGLE_USER = null;
 let TAB         = 'dashboard';
-let GOOGLE_USER = null; // { name, email, picture, sub }
-
-function saveProfile()  { LS.set('wt_profile',  PROFILE);      }
-function saveEntries()  { LS.set('wt_entries',  ENTRIES);      }
-function savePayments() { LS.set('wt_payments', PAYMENTS);     }
-function saveActive()   { LS.set('wt_active',   activeEntry);  }
+let _unsubEntries = null, _unsubPayments = null;
+let _synced = false;
 
 // ──────────────────────────────────────────────
-// Validation helpers
+// Sync indicator
 // ──────────────────────────────────────────────
-function fieldErr(id, msg){
-  const wrap = document.getElementById(id);
-  if(!wrap) return;
-  wrap.classList.add('has-err');
-  if(msg){ const em = wrap.querySelector('.err-msg'); if(em) em.textContent = msg; }
-}
-function fieldOk(id){
-  const wrap = document.getElementById(id);
-  if(wrap) wrap.classList.remove('has-err');
-}
-function clearFieldErrs(...ids){ ids.forEach(fieldOk); }
-
-function validateRequired(fieldId, inputId, msg){
-  const val = (document.getElementById(inputId)||{}).value?.trim();
-  if(!val){ fieldErr(fieldId, msg||'This field is required'); return false; }
-  fieldOk(fieldId); return true;
-}
-function validatePositiveNumber(fieldId, inputId, msg){
-  const val = parseFloat((document.getElementById(inputId)||{}).value);
-  if(isNaN(val) || val <= 0){ fieldErr(fieldId, msg||'Must be a number greater than 0'); return false; }
-  fieldOk(fieldId); return true;
+function setSyncState(state){ // 'saving' | 'live' | 'offline'
+  const dot   = document.getElementById('syncDot');
+  const label = document.getElementById('syncLabel');
+  if(!dot) return;
+  dot.className = 'sync-dot' + (state==='live'?' live':state==='saving'?' saving':'');
+  if(state==='saving') label && (label.textContent = 'SAVING…');
+  else if(state==='offline') label && (label.textContent = 'OFFLINE');
+  else if(_synced) label && (label.textContent = `WEEK OF ${fmtDateShort(new Date(weekKey(new Date()))).toUpperCase()}`);
 }
 
 // ──────────────────────────────────────────────
 // Toast
 // ──────────────────────────────────────────────
 let _toastTimer;
-function toast(msg, duration=2500){
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
+function toast(msg, ms=2500){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(()=> el.classList.remove('show'), duration);
+  _toastTimer=setTimeout(()=>el.classList.remove('show'),ms);
 }
 
 // ──────────────────────────────────────────────
-// Google Auth
+// Validation
 // ──────────────────────────────────────────────
-function decodeJwt(token){
-  try{
-    const payload = token.split('.')[1];
-    return JSON.parse(atob(payload.replace(/-/g,'+').replace(/_/g,'/')));
-  }catch(e){ return null; }
-}
-
-function saveClientId(){
-  const val = document.getElementById('clientIdInput').value.trim();
-  if(!val || !val.includes('.apps.googleusercontent.com')){
-    fieldErr('f-clientId','Enter a valid Client ID ending in .apps.googleusercontent.com'); return;
-  }
-  fieldOk('f-clientId');
-  LS.set('wt_gcid', val);
-  boot();
-}
-
-function initGoogleSignIn(clientId){
-  if(typeof google === 'undefined'){
-    // GSI script not loaded yet — retry
-    setTimeout(()=> initGoogleSignIn(clientId), 300); return;
-  }
-  google.accounts.id.initialize({
-    client_id: clientId,
-    callback: handleGoogleCredential,
-    auto_select: true,
-    cancel_on_tap_outside: false,
-  });
-
-  const authorisedSub = LS.get('wt_gsub');
-  if(authorisedSub){
-    const email = LS.get('wt_gemail');
-    if(email){
-      document.getElementById('authorisedEmail').textContent = email;
-      document.getElementById('authorisedHint').style.display = 'inline';
-    }
-  }
-
-  google.accounts.id.renderButton(document.getElementById('googleBtn'), {
-    type:'standard', theme:'outline', size:'large', text:'sign_in_with', shape:'rectangular', width:260
-  });
-  google.accounts.id.prompt();
-}
-
-function handleGoogleCredential(response){
-  const payload = decodeJwt(response.credential);
-  if(!payload){ showSignInError('Invalid sign-in response. Please try again.'); return; }
-
-  const authorisedSub = LS.get('wt_gsub');
-
-  if(authorisedSub && payload.sub !== authorisedSub){
-    showSignInError(`This app is locked to a different Google account (${LS.get('wt_gemail')||'unknown'}). Sign in with that account.`);
-    return;
-  }
-
-  // First sign-in — register this user
-  if(!authorisedSub){
-    LS.set('wt_gsub',   payload.sub);
-    LS.set('wt_gemail', payload.email);
-  }
-
-  GOOGLE_USER = { name: payload.name, email: payload.email, picture: payload.picture, sub: payload.sub };
-
-  if(!PROFILE.employeeName){
-    // Pre-fill name from Google
-    document.getElementById('setupName').value = payload.given_name || payload.name || '';
-    showScreen('profileSetupScreen');
-  } else {
-    showApp();
-  }
-}
-
-function showSignInError(msg){
-  const el = document.getElementById('signInError');
-  el.textContent = msg;
-  el.classList.remove('hidden');
-}
-
-function signOut(){
-  if(!confirm('Sign out? You will need to sign in with Google again to access WorkTrack.')) return;
-  if(typeof google !== 'undefined') google.accounts.id.disableAutoSelect();
-  GOOGLE_USER = null;
-  showScreen('signInScreen');
-  initGoogleSignIn(LS.get('wt_gcid'));
-}
-
-function revokeGoogleAccess(){
-  if(!confirm('This will unlink Google Sign-In and reset the app lock. You will be asked to pick an account next time.\n\nContinue?')) return;
-  if(typeof google !== 'undefined' && GOOGLE_USER){
-    google.accounts.id.revoke(GOOGLE_USER.email, done => {});
-  }
-  LS.remove('wt_gsub');
-  LS.remove('wt_gemail');
-  GOOGLE_USER = null;
-  toast('Google account unlinked');
-  showScreen('signInScreen');
-  initGoogleSignIn(LS.get('wt_gcid'));
-}
+function fieldErr(id,msg){ const w=document.getElementById(id); if(!w) return; w.classList.add('has-err'); if(msg){ const e=w.querySelector('.err-msg'); if(e) e.textContent=msg; } }
+function fieldOk(id){ const w=document.getElementById(id); if(w) w.classList.remove('has-err'); }
+function validateRequired(fid,iid,msg){ const v=(document.getElementById(iid)||{}).value?.trim(); if(!v){ fieldErr(fid,msg); return false; } fieldOk(fid); return true; }
+function validatePositive(fid,iid,msg){ const v=parseFloat((document.getElementById(iid)||{}).value); if(isNaN(v)||v<=0){ fieldErr(fid,msg); return false; } fieldOk(fid); return true; }
 
 // ──────────────────────────────────────────────
 // Screen management
 // ──────────────────────────────────────────────
-const SCREENS = ['clientIdScreen','signInScreen','profileSetupScreen','appRoot'];
-function showScreen(id){
-  SCREENS.forEach(s => document.getElementById(s).classList.toggle('hidden', s !== id));
+const SCREENS = ['loadingScreen','signInScreen','profileSetupScreen','appRoot'];
+function showScreen(id){ SCREENS.forEach(s=>{ const el=document.getElementById(s); if(el) el.classList.toggle('hidden',s!==id); }); }
+
+// ──────────────────────────────────────────────
+// Auth
+// ──────────────────────────────────────────────
+async function signInWithGoogle(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  document.getElementById('signInError').classList.add('hidden');
+  try {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if(isMobile){ await auth.signInWithRedirect(provider); }
+    else         { await auth.signInWithPopup(provider); }
+  } catch(e){
+    const el=document.getElementById('signInError');
+    el.textContent = e.message; el.classList.remove('hidden');
+  }
 }
 
+async function signOut(){
+  if(!confirm('Sign out of WorkTrack?')) return;
+  clearListeners();
+  await auth.signOut();
+  GOOGLE_USER=null; ENTRIES=[]; PAYMENTS=[]; activeEntry=null; _synced=false;
+  showScreen('signInScreen');
+}
+
+// ──────────────────────────────────────────────
+// Firestore helpers
+// ──────────────────────────────────────────────
+function userRef(){ return db.collection('users').doc(auth.currentUser.uid); }
+
+async function fsaveProfile(){
+  setSyncState('saving');
+  await userRef().set({ profile:PROFILE, activeEntry }, { merge:true });
+  LS.set('wt_profile', PROFILE);
+  setSyncState('live');
+}
+async function fsaveActive(){
+  setSyncState('saving');
+  await userRef().set({ activeEntry }, { merge:true });
+  LS.set('wt_active', activeEntry);
+  setSyncState('live');
+}
+async function fsaveEntry(entry){
+  setSyncState('saving');
+  await userRef().collection('entries').doc(entry.id).set(entry);
+  setSyncState('live');
+}
+async function fdeleteEntry(id){
+  setSyncState('saving');
+  await userRef().collection('entries').doc(id).delete();
+  setSyncState('live');
+}
+async function fsavePayment(payment){
+  setSyncState('saving');
+  await userRef().collection('payments').doc(payment.id).set(payment);
+  setSyncState('live');
+}
+
+function clearListeners(){
+  if(_unsubEntries){ _unsubEntries(); _unsubEntries=null; }
+  if(_unsubPayments){ _unsubPayments(); _unsubPayments=null; }
+}
+
+// ──────────────────────────────────────────────
+// Load user data + set up real-time listeners
+// ──────────────────────────────────────────────
+async function initUserData(uid){
+  // Load profile & activeEntry from Firestore
+  const snap = await userRef().get();
+  if(snap.exists){
+    const d = snap.data();
+    if(d.profile)     PROFILE     = { ...PROFILE, ...d.profile };
+    if(d.activeEntry) activeEntry = d.activeEntry;
+  }
+  LS.set('wt_profile', PROFILE);
+  LS.set('wt_active',  activeEntry);
+
+  // Real-time entries listener
+  _unsubEntries = userRef().collection('entries')
+    .orderBy('date','desc')
+    .onSnapshot(snap=>{
+      ENTRIES = snap.docs.map(d=>d.data());
+      LS.set('wt_entries', ENTRIES);
+      if(_synced) render();
+    }, ()=>{ ENTRIES = LS.get('wt_entries')||[]; });
+
+  // Real-time payments listener
+  _unsubPayments = userRef().collection('payments')
+    .onSnapshot(snap=>{
+      PAYMENTS = snap.docs.map(d=>d.data());
+      LS.set('wt_payments', PAYMENTS);
+      if(_synced) render();
+    }, ()=>{ PAYMENTS = LS.get('wt_payments')||[]; });
+}
+
+// ──────────────────────────────────────────────
+// Auth state observer — single source of truth
+// ──────────────────────────────────────────────
+auth.onAuthStateChanged(async user=>{
+  if(user){
+    GOOGLE_USER = { name:user.displayName, email:user.email, picture:user.photoURL, uid:user.uid };
+    await initUserData(user.uid);
+    if(!PROFILE.employeeName){
+      // First-time user — pre-fill name from Google
+      const given = (user.displayName||'').split(' ')[0];
+      document.getElementById('setupName').value = given;
+      showScreen('profileSetupScreen');
+    } else {
+      showApp();
+    }
+  } else {
+    showScreen('signInScreen');
+  }
+});
+
 function showApp(){
+  _synced = true;
   showScreen('appRoot');
   updateAvatar();
+  setSyncState('live');
   setTab('dashboard');
 }
 
 function updateAvatar(){
   const el = document.getElementById('topAvatar');
+  if(!el) return;
   if(GOOGLE_USER?.picture){
-    el.innerHTML = `<img src="${GOOGLE_USER.picture}" alt="You" onclick="setTab('settings')">`;
+    el.innerHTML=`<img src="${GOOGLE_USER.picture}" alt="You" onclick="setTab('settings')" title="${GOOGLE_USER.email}">`;
   } else if(PROFILE.employeeName){
-    el.innerHTML = `<div class="avatar-placeholder" onclick="setTab('settings')">${PROFILE.employeeName[0].toUpperCase()}</div>`;
+    el.innerHTML=`<div class="avatar-ph" onclick="setTab('settings')">${PROFILE.employeeName[0].toUpperCase()}</div>`;
   }
 }
 
 // ──────────────────────────────────────────────
-// Boot
+// Profile setup
 // ──────────────────────────────────────────────
-function boot(){
-  const clientId = LS.get('wt_gcid');
-  if(!clientId){
-    showScreen('clientIdScreen'); return;
-  }
-  showScreen('signInScreen');
-  initGoogleSignIn(clientId);
-}
-
-// ──────────────────────────────────────────────
-// Profile setup (first sign-in)
-// ──────────────────────────────────────────────
-function completeProfileSetup(){
-  const okName    = validateRequired('f-setupName',   'setupName',  'Your name is required');
-  const okRate    = validatePositiveNumber('f-setupRate',  'setupRate',  'Enter a rate greater than 0');
-  const okLimit   = validatePositiveNumber('f-setupLimit', 'setupLimit', 'Enter hours greater than 0');
-  if(!okName || !okRate || !okLimit) return;
-
+async function completeProfileSetup(){
+  const okName  = validateRequired('f-setupName','setupName','Your name is required');
+  const okRate  = validatePositive('f-setupRate','setupRate','Enter a rate greater than 0');
+  const okLimit = validatePositive('f-setupLimit','setupLimit','Enter hours greater than 0');
+  if(!okName||!okRate||!okLimit) return;
   PROFILE.employeeName = document.getElementById('setupName').value.trim();
   PROFILE.hourlyRate   = parseFloat(document.getElementById('setupRate').value);
   PROFILE.weeklyLimit  = parseFloat(document.getElementById('setupLimit').value);
   PROFILE.employerName = document.getElementById('setupEmployer').value.trim();
   PROFILE.workplace    = document.getElementById('setupWorkplace').value.trim();
-  saveProfile();
+  await fsaveProfile();
   showApp();
 }
 
@@ -467,23 +464,22 @@ function completeProfileSetup(){
 // ──────────────────────────────────────────────
 function fmtDateShort(d){ return d.toLocaleDateString('en-NZ',{day:'2-digit',month:'short'}); }
 function fmtDateLong(d){ return d.toLocaleDateString('en-NZ',{weekday:'long',day:'2-digit',month:'short'}); }
-function startOfWeek(d){ const dt=new Date(d); const day=(dt.getDay()+6)%7; dt.setDate(dt.getDate()-day); dt.setHours(0,0,0,0); return dt; }
+function startOfWeek(d){ const dt=new Date(d),day=(dt.getDay()+6)%7; dt.setDate(dt.getDate()-day); dt.setHours(0,0,0,0); return dt; }
 function weekKey(d){ return startOfWeek(d).toISOString().slice(0,10); }
 function addDays(iso,n){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
-function entriesForWeek(ws){ return ENTRIES.filter(e=>e.date>=ws && e.date<=addDays(ws,6)); }
-function hoursToHM(h){ const hh=Math.floor(h); const mm=Math.round((h-hh)*60); return mm===0?hh+'h':hh+'h '+mm+'m'; }
+function entriesForWeek(ws){ return ENTRIES.filter(e=>e.date>=ws&&e.date<=addDays(ws,6)); }
+function hoursToHM(h){ const hh=Math.floor(h),mm=Math.round((h-hh)*60); return mm===0?hh+'h':hh+'h '+mm+'m'; }
 function fmtCoords(lat,lng){ return lat==null?'':lat.toFixed(5)+'°, '+lng.toFixed(5)+'°'; }
 
 function calcWeek(ws){
-  const list  = entriesForWeek(ws).filter(e=>e.clockOut);
-  const total = list.reduce((s,e)=>s+e.hoursWorked,0);
-  const limit = PROFILE.weeklyLimit;
-  const reg   = Math.min(total,limit), extra = Math.max(0,total-limit);
-  const earned = (reg+extra)*PROFILE.hourlyRate;
-  const received = PAYMENTS.filter(p=>p.weekStart===ws).reduce((s,p)=>s+Number(p.amount),0);
-  const outstanding = Math.max(0,earned-received);
+  const list=entriesForWeek(ws).filter(e=>e.clockOut);
+  const total=list.reduce((s,e)=>s+e.hoursWorked,0);
+  const reg=Math.min(total,PROFILE.weeklyLimit),extra=Math.max(0,total-PROFILE.weeklyLimit);
+  const earned=(reg+extra)*PROFILE.hourlyRate;
+  const received=PAYMENTS.filter(p=>p.weekStart===ws).reduce((s,p)=>s+Number(p.amount),0);
+  const outstanding=Math.max(0,earned-received);
   let status='Unpaid';
-  if(received>=earned && earned>0) status='Paid';
+  if(received>=earned&&earned>0) status='Paid';
   else if(received>0) status='Partially Paid';
   return {total,reg,extra,earned,received,outstanding,status,entries:list};
 }
@@ -495,15 +491,14 @@ function getLocation(){
   return new Promise(resolve=>{
     if(!navigator.geolocation){ resolve(null); return; }
     navigator.geolocation.getCurrentPosition(
-      pos=>resolve({lat:pos.coords.latitude,lng:pos.coords.longitude,acc:Math.round(pos.coords.accuracy)}),
-      ()=>resolve(null),
-      {enableHighAccuracy:true,timeout:10000}
+      p=>resolve({lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy)}),
+      ()=>resolve(null),{enableHighAccuracy:true,timeout:10000}
     );
   });
 }
 
 // ──────────────────────────────────────────────
-// Clock
+// Clock in / out
 // ──────────────────────────────────────────────
 async function clockIn(){
   const btn=document.querySelector('.btn-clockin');
@@ -515,12 +510,14 @@ async function clockIn(){
     date:now.toISOString().slice(0,10),
     clockIn:now.toTimeString().slice(0,5),
     clockInTs:now.toISOString(),
-    latIn:loc?loc.lat:null, lngIn:loc?loc.lng:null, accIn:loc?loc.acc:null,
+    latIn:loc?loc.lat:null,lngIn:loc?loc.lng:null,accIn:loc?loc.acc:null,
     workplace:PROFILE.workplace||'',
     gpsIn:!!loc
   };
-  saveActive(); render();
+  await fsaveActive();
+  render();
 }
+
 async function clockOut(){
   if(!activeEntry) return;
   const btn=document.querySelector('.btn-clockout');
@@ -528,23 +525,25 @@ async function clockOut(){
   const loc=await getLocation();
   const now=new Date();
   const hours=Math.max(0,(now-new Date(activeEntry.clockInTs))/3600000);
-  ENTRIES.push({
+  const entry={
     ...activeEntry,
     clockOut:now.toTimeString().slice(0,5),
     clockOutTs:now.toISOString(),
-    latOut:loc?loc.lat:null, lngOut:loc?loc.lng:null, accOut:loc?loc.acc:null,
+    latOut:loc?loc.lat:null,lngOut:loc?loc.lng:null,accOut:loc?loc.acc:null,
     gpsOut:!!loc,
     hoursWorked:Math.round(hours*100)/100
-  });
+  };
+  await fsaveEntry(entry);
   activeEntry=null;
-  saveEntries(); saveActive();
-  toast('Clocked out — '+hoursToHM(ENTRIES[ENTRIES.length-1].hoursWorked)+' recorded');
+  await fsaveActive();
+  toast('Clocked out — '+hoursToHM(entry.hoursWorked)+' recorded');
   setTab('dashboard');
 }
+
 async function deleteEntry(id){
   if(!confirm('Delete this entry?')) return;
-  ENTRIES=ENTRIES.filter(e=>e.id!==id);
-  saveEntries(); render();
+  await fdeleteEntry(id);
+  render();
 }
 
 // ──────────────────────────────────────────────
@@ -558,7 +557,8 @@ function openPaymentModal(ws){
         <h3>Add payment</h3>
         <div class="muted" style="margin-bottom:14px;">
           ${fmtDateShort(new Date(ws))} – ${fmtDateShort(new Date(addDays(ws,6)))}
-          &nbsp;·&nbsp; Earned $${wk.earned.toFixed(2)} &nbsp;·&nbsp; Outstanding $${wk.outstanding.toFixed(2)}
+          &nbsp;·&nbsp; Earned $${wk.earned.toFixed(2)}
+          &nbsp;·&nbsp; Outstanding $${wk.outstanding.toFixed(2)}
         </div>
         <div class="field" id="f-payAmount">
           <label>Amount received (NZD)</label>
@@ -582,17 +582,18 @@ function openPaymentModal(ws){
     </div>`;
 }
 function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
-function submitPayment(ws){
-  const okAmt  = validatePositiveNumber('f-payAmount','payAmount','Enter an amount greater than 0');
+async function submitPayment(ws){
+  const okAmt  = validatePositive('f-payAmount','payAmount','Enter an amount greater than 0');
   const okDate = validateRequired('f-payDate','payDate','Date is required');
   if(!okAmt||!okDate) return;
-  PAYMENTS.push({id:'p'+Date.now(),weekStart:ws,weekEnd:addDays(ws,6),
+  const payment={
+    id:'p'+Date.now(), weekStart:ws, weekEnd:addDays(ws,6),
     amount:parseFloat(document.getElementById('payAmount').value),
     date:document.getElementById('payDate').value,
     note:document.getElementById('payNote').value.trim()
-  });
-  savePayments(); closeModal(); render();
-  toast('Payment recorded');
+  };
+  await fsavePayment(payment);
+  closeModal(); toast('Payment recorded');
 }
 
 // ──────────────────────────────────────────────
@@ -601,13 +602,10 @@ function submitPayment(ws){
 function shareWeek(ws){
   const wk=calcWeek(ws);
   const days=wk.entries.map(e=>{
-    const dayName=new Date(e.date+'T00:00:00').toLocaleDateString('en-NZ',{weekday:'long',day:'2-digit',month:'short'});
-    const locIn  = e.gpsIn  ? fmtCoords(e.latIn,e.lngIn)+(e.accIn?` ±${e.accIn}m`:'')  : 'GPS unavailable';
-    const locOut = e.gpsOut ? fmtCoords(e.latOut,e.lngOut)+(e.accOut?` ±${e.accOut}m`:'') : 'GPS unavailable';
-    return `${dayName}
-  In:  ${e.clockIn}  |  ${e.workplace||'Workplace'} — ${locIn}
-  Out: ${e.clockOut} |  ${e.workplace||'Workplace'} — ${locOut}
-  Hours: ${hoursToHM(e.hoursWorked)}`;
+    const name=new Date(e.date+'T00:00:00').toLocaleDateString('en-NZ',{weekday:'long',day:'2-digit',month:'short'});
+    const locIn =e.gpsIn ?fmtCoords(e.latIn,e.lngIn)+(e.accIn?` ±${e.accIn}m`:''):'GPS unavailable';
+    const locOut=e.gpsOut?fmtCoords(e.latOut,e.lngOut)+(e.accOut?` ±${e.accOut}m`:''):'GPS unavailable';
+    return `${name}\n  In:  ${e.clockIn}  |  ${e.workplace||'Workplace'} — ${locIn}\n  Out: ${e.clockOut} |  ${e.workplace||'Workplace'} — ${locOut}\n  Hours: ${hoursToHM(e.hoursWorked)}`;
   }).join('\n\n');
   const msg=`📋 Weekly Timesheet — WorkTrack\n\nEmployee: ${PROFILE.employeeName}\nEmployer: ${PROFILE.employerName||'—'}\nWeek: ${fmtDateShort(new Date(ws))} – ${fmtDateShort(new Date(addDays(ws,6)))}\n\n${days}\n\n──────────────────\nTotal Hours:   ${hoursToHM(wk.total)}\nRegular / Extra: ${hoursToHM(wk.reg)} / ${hoursToHM(wk.extra)}\nHourly Rate:   $${PROFILE.hourlyRate}/hr\nTotal Earned:  $${wk.earned.toFixed(2)}\n──────────────────`;
   window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
@@ -616,25 +614,12 @@ function shareWeek(ws){
 function exportPDF(ws){
   const wk=calcWeek(ws);
   const rows=wk.entries.map(e=>{
-    const locIn  = e.gpsIn  ? `${e.workplace||'Workplace'}<br><small>${fmtCoords(e.latIn,e.lngIn)}${e.accIn?` ±${e.accIn}m`:''}</small>`  : (e.workplace||'—');
-    const locOut = e.gpsOut ? `${e.workplace||'Workplace'}<br><small>${fmtCoords(e.latOut,e.lngOut)}${e.accOut?` ±${e.accOut}m`:''}</small>` : (e.workplace||'—');
-    return `<tr>
-      <td>${new Date(e.date+'T00:00:00').toLocaleDateString('en-NZ',{weekday:'short',day:'2-digit',month:'short'})}</td>
-      <td>${e.clockIn}<br><small>${locIn}</small></td>
-      <td>${e.clockOut}<br><small>${locOut}</small></td>
-      <td>${hoursToHM(e.hoursWorked)}</td>
-      <td style="color:${e.gpsIn&&e.gpsOut?'#1F8A70':'#999'}">${e.gpsIn&&e.gpsOut?'✅ Verified':'—'}</td>
-    </tr>`;
+    const locIn =e.gpsIn ?`${e.workplace||'Workplace'}<br><small>${fmtCoords(e.latIn,e.lngIn)}${e.accIn?` ±${e.accIn}m`:''}</small>`:(e.workplace||'—');
+    const locOut=e.gpsOut?`${e.workplace||'Workplace'}<br><small>${fmtCoords(e.latOut,e.lngOut)}${e.accOut?` ±${e.accOut}m`:''}</small>`:(e.workplace||'—');
+    return `<tr><td>${new Date(e.date+'T00:00:00').toLocaleDateString('en-NZ',{weekday:'short',day:'2-digit',month:'short'})}</td><td>${e.clockIn}<br><small>${locIn}</small></td><td>${e.clockOut}<br><small>${locOut}</small></td><td>${hoursToHM(e.hoursWorked)}</td><td style="color:${e.gpsIn&&e.gpsOut?'#1F8A70':'#999'}">${e.gpsIn&&e.gpsOut?'✅ Verified':'—'}</td></tr>`;
   }).join('');
   const w=window.open('','_blank');
-  w.document.write(`<html><head><title>WorkTrack – Weekly Report</title><meta name="viewport" content="width=device-width,initial-scale=1">
-    <style>body{font-family:system-ui,sans-serif;padding:20px;color:#101C2C;max-width:700px;margin:0 auto;}h1{font-size:20px;margin-bottom:2px;}.meta{font-size:13px;color:#555;margin-bottom:16px;}table{width:100%;border-collapse:collapse;font-size:13px;}th{background:#101C2C;color:#fff;padding:9px 8px;text-align:left;}td{border-bottom:1px solid #e3ddcf;padding:9px 8px;vertical-align:top;}tr:nth-child(even) td{background:#f9f7f2;}small{font-size:11px;color:#555;}.sum{margin-top:20px;border:1px solid #e3ddcf;border-radius:10px;padding:14px;}.sum div{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0ece3;font-size:14px;}.sum div:last-child{border-bottom:none;font-weight:700;}@media print{button{display:none;}}</style></head>
-    <body><h1>WorkTrack — Weekly Report</h1>
-    <div class="meta">Employee: <strong>${PROFILE.employeeName}</strong> &nbsp;|&nbsp; Employer: <strong>${PROFILE.employerName||'—'}</strong> &nbsp;|&nbsp; Workplace: <strong>${PROFILE.workplace||'—'}</strong><br>Week: ${fmtDateShort(new Date(ws))} – ${fmtDateShort(new Date(addDays(ws,6)))} &nbsp;|&nbsp; Rate: $${PROFILE.hourlyRate}/hr</div>
-    <table><tr><th>Date</th><th>Clock In &amp; Location</th><th>Clock Out &amp; Location</th><th>Hours</th><th>GPS</th></tr>${rows}</table>
-    <div class="sum"><div><span>Total Hours</span><span>${hoursToHM(wk.total)}</span></div><div><span>Regular / Extra</span><span>${hoursToHM(wk.reg)} / ${hoursToHM(wk.extra)}</span></div><div><span>Hourly Rate</span><span>$${PROFILE.hourlyRate}</span></div><div><span>Total Earned</span><span>$${wk.earned.toFixed(2)}</span></div><div><span>Received</span><span>$${wk.received.toFixed(2)}</span></div><div><span>Outstanding</span><span>$${wk.outstanding.toFixed(2)}</span></div><div><span>Status</span><span>${wk.status}</span></div></div>
-    <br><button onclick="window.print()" style="padding:10px 20px;font-size:14px;cursor:pointer;">Print / Save PDF</button>
-    </body></html>`);
+  w.document.write(`<html><head><title>WorkTrack – Weekly Report</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,sans-serif;padding:20px;color:#101C2C;max-width:700px;margin:0 auto;}h1{font-size:20px;}.meta{font-size:13px;color:#555;margin-bottom:16px;}table{width:100%;border-collapse:collapse;font-size:13px;}th{background:#101C2C;color:#fff;padding:9px 8px;text-align:left;}td{border-bottom:1px solid #e3ddcf;padding:9px 8px;vertical-align:top;}tr:nth-child(even) td{background:#f9f7f2;}small{font-size:11px;color:#555;}.sum{margin-top:20px;border:1px solid #e3ddcf;border-radius:10px;padding:14px;}.sum div{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0ece3;font-size:14px;}.sum div:last-child{border-bottom:none;font-weight:700;}@media print{button{display:none;}}</style></head><body><h1>WorkTrack — Weekly Report</h1><div class="meta">Employee: <strong>${PROFILE.employeeName}</strong> &nbsp;|&nbsp; Employer: <strong>${PROFILE.employerName||'—'}</strong> &nbsp;|&nbsp; Workplace: <strong>${PROFILE.workplace||'—'}</strong><br>Week: ${fmtDateShort(new Date(ws))} – ${fmtDateShort(new Date(addDays(ws,6)))} &nbsp;|&nbsp; Rate: $${PROFILE.hourlyRate}/hr</div><table><tr><th>Date</th><th>Clock In &amp; Location</th><th>Clock Out &amp; Location</th><th>Hours</th><th>GPS</th></tr>${rows}</table><div class="sum"><div><span>Total Hours</span><span>${hoursToHM(wk.total)}</span></div><div><span>Regular / Extra</span><span>${hoursToHM(wk.reg)} / ${hoursToHM(wk.extra)}</span></div><div><span>Hourly Rate</span><span>$${PROFILE.hourlyRate}</span></div><div><span>Total Earned</span><span>$${wk.earned.toFixed(2)}</span></div><div><span>Received</span><span>$${wk.received.toFixed(2)}</span></div><div><span>Outstanding</span><span>$${wk.outstanding.toFixed(2)}</span></div><div><span>Status</span><span>${wk.status}</span></div></div><br><button onclick="window.print()" style="padding:10px 20px;font-size:14px;cursor:pointer;">Print / Save PDF</button></body></html>`);
   w.document.close();
 }
 
@@ -647,8 +632,9 @@ function pillClass(s){ return s==='Paid'?'pill-paid':s==='Partially Paid'?'pill-
 function render(){
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===TAB));
   const m=document.getElementById('main');
-  const today=new Date(), curWS=weekKey(today);
-  document.getElementById('topSub').textContent=`WEEK OF ${fmtDateShort(new Date(curWS)).toUpperCase()}`;
+  if(!m) return;
+  const curWS=weekKey(new Date());
+  document.getElementById('syncLabel').textContent=`WEEK OF ${fmtDateShort(new Date(curWS)).toUpperCase()}`;
   if(TAB==='dashboard') return renderDashboard(m,curWS);
   if(TAB==='clock')     return renderClock(m);
   if(TAB==='history')   return renderHistory(m);
@@ -663,11 +649,7 @@ function renderDashboard(m,curWS){
   const todayISO=new Date().toISOString().slice(0,10);
   const todayCount=ENTRIES.filter(e=>e.date===todayISO&&e.clockOut).length;
   m.innerHTML=`
-    ${activeEntry?`<div class="clocked-in-banner">
-      <div class="gps-dot ${activeEntry.gpsIn?'':'off'}"></div>
-      <div class="info"><div class="time">Clocked in — ${activeEntry.clockIn}</div>
-      <div class="sub">${activeEntry.gpsIn?'GPS captured':'GPS unavailable'} · Tap Clock tab to finish</div></div>
-    </div>`:''}
+    ${activeEntry?`<div class="clocked-in-banner"><div class="gps-dot ${activeEntry.gpsIn?'':'off'}"></div><div class="info"><div class="time">Clocked in — ${activeEntry.clockIn}</div><div class="sub">${activeEntry.gpsIn?'GPS captured':'GPS unavailable'} · Tap Clock tab to finish</div></div></div>`:''}
     <div class="hero">
       <div class="label">Current week</div>
       <div class="big">${hoursToHM(wk.total)} <small>/ ${PROFILE.weeklyLimit}h</small></div>
@@ -706,10 +688,7 @@ function renderClock(m){
     <div class="card">
       <h2>${activeEntry?'You\'re clocked in':'Ready to clock in'}</h2>
       ${activeEntry?`
-        <div class="tag-line">
-          <span class="gps-dot ${activeEntry.gpsIn?'':'off'}"></span>
-          <span class="muted">Clocked in at <strong>${activeEntry.clockIn}</strong>${activeEntry.gpsIn?' · GPS verified ✅':' · GPS unavailable'}</span>
-        </div>
+        <div class="tag-line"><span class="gps-dot ${activeEntry.gpsIn?'':'off'}"></span><span class="muted">Clocked in at <strong>${activeEntry.clockIn}</strong>${activeEntry.gpsIn?' · GPS verified ✅':' · GPS unavailable'}</span></div>
         ${activeEntry.gpsIn?`<div class="muted" style="margin-bottom:12px;font-size:11.5px;">📍 ${fmtCoords(activeEntry.latIn,activeEntry.lngIn)}${activeEntry.accIn?' ±'+activeEntry.accIn+'m':''}</div>`:''}
         <button class="btn btn-clockout" onclick="clockOut()">Clock Out</button>
       `:`
@@ -739,7 +718,7 @@ function renderHistory(m){
   if(!weekStarts.length){ m.innerHTML=`<div class="card"><div class="empty">No history yet. Clock in to start.</div></div>`; return; }
   m.innerHTML=weekStarts.map(ws=>{
     const wk=calcWeek(ws);
-    const entryRows=wk.entries.map(e=>`
+    const rows=wk.entries.map(e=>`
       <div class="entry-row">
         <div class="d">${fmtDateLong(new Date(e.date+'T00:00:00'))} · ${hoursToHM(e.hoursWorked)}</div>
         <div class="t">${e.clockIn} – ${e.clockOut}</div>
@@ -747,17 +726,11 @@ function renderHistory(m){
         ${e.gpsOut?`<div class="loc"><span class="gps-dot"></span> Out: ${fmtCoords(e.latOut,e.lngOut)}${e.accOut?' ±'+e.accOut+'m':''}</div>`:''}
       </div>`).join('');
     return `<div class="card week-card">
-      <div class="head">
-        <div class="wk">${fmtDateShort(new Date(ws))} – ${fmtDateShort(new Date(addDays(ws,6)))}</div>
-        <span class="pill ${pillClass(wk.status)}">${wk.status}</span>
-      </div>
+      <div class="head"><div class="wk">${fmtDateShort(new Date(ws))} – ${fmtDateShort(new Date(addDays(ws,6)))}</div><span class="pill ${pillClass(wk.status)}">${wk.status}</span></div>
       <div class="stat-row"><div class="l">Hours</div><div class="v">${hoursToHM(wk.total)}</div></div>
       <div class="stat-row"><div class="l">Earned</div><div class="v">$${wk.earned.toFixed(2)}</div></div>
       <div class="stat-row"><div class="l">Outstanding</div><div class="v">$${wk.outstanding.toFixed(2)}</div></div>
-      <details style="margin-top:10px;">
-        <summary style="font-size:13px;color:var(--ink-soft);cursor:pointer;padding:4px 0;">Show daily entries</summary>
-        <div style="margin-top:8px;">${entryRows||'<div class="empty" style="padding:16px 0;">No completed entries.</div>'}</div>
-      </details>
+      <details style="margin-top:10px;"><summary style="font-size:13px;color:var(--ink-soft);cursor:pointer;padding:4px 0;">Show daily entries</summary><div style="margin-top:8px;">${rows||'<div class="empty" style="padding:16px 0;">No completed entries.</div>'}</div></details>
       <div class="btn-row" style="margin-top:12px;">
         <button class="btn btn-gold" style="font-size:13px;padding:12px;" onclick="shareWeek('${ws}')">WhatsApp</button>
         <button class="btn btn-ghost" style="font-size:13px;padding:12px;" onclick="exportPDF('${ws}')">PDF</button>
@@ -767,8 +740,7 @@ function renderHistory(m){
 }
 
 function renderMonthlySummary(){
-  const today=new Date();
-  const label=today.toLocaleDateString('en-NZ',{month:'long',year:'numeric'});
+  const today=new Date(),label=today.toLocaleDateString('en-NZ',{month:'long',year:'numeric'});
   const me=ENTRIES.filter(e=>{ const d=new Date(e.date+'T00:00:00'); return d.getMonth()===today.getMonth()&&d.getFullYear()===today.getFullYear()&&e.clockOut; });
   const totalH=me.reduce((s,e)=>s+e.hoursWorked,0);
   const wss=[...new Set(me.map(e=>weekKey(new Date(e.date+'T00:00:00'))))];
@@ -790,10 +762,7 @@ function renderPayments(m,curWS){
     const wk=calcWeek(ws);
     const pays=PAYMENTS.filter(p=>p.weekStart===ws);
     return `<div class="card">
-      <div class="head">
-        <div class="wk">${fmtDateShort(new Date(ws))} – ${fmtDateShort(new Date(addDays(ws,6)))}</div>
-        <span class="pill ${pillClass(wk.status)}">${wk.status}</span>
-      </div>
+      <div class="head"><div class="wk">${fmtDateShort(new Date(ws))} – ${fmtDateShort(new Date(addDays(ws,6)))}</div><span class="pill ${pillClass(wk.status)}">${wk.status}</span></div>
       <div class="stat-row"><div class="l">Earned</div><div class="v">$${wk.earned.toFixed(2)}</div></div>
       <div class="stat-row"><div class="l">Received</div><div class="v">$${wk.received.toFixed(2)}</div></div>
       <div class="stat-row"><div class="l">Outstanding</div><div class="v">$${wk.outstanding.toFixed(2)}</div></div>
@@ -804,101 +773,68 @@ function renderPayments(m,curWS){
 }
 
 function renderSettings(m){
-  const gcid=LS.get('wt_gcid')||'';
   m.innerHTML=`
     <div class="card">
       <h2>Profile &amp; pay</h2>
-      <div class="field" id="f-setName">
-        <label>Your name</label>
-        <input id="setName" value="${PROFILE.employeeName||''}" autocomplete="given-name">
-        <div class="err-msg">Name is required</div>
-      </div>
-      <div class="field" id="f-setEmployer">
-        <label>Employer name</label>
-        <input id="setEmployer" value="${PROFILE.employerName||''}">
-      </div>
-      <div class="field" id="f-setWorkplace">
-        <label>Workplace / location</label>
-        <input id="setWorkplace" value="${PROFILE.workplace||''}">
-      </div>
-      <div class="field" id="f-setRate">
-        <label>Hourly rate (NZD)</label>
-        <input id="setRate" type="number" inputmode="decimal" value="${PROFILE.hourlyRate}">
-        <div class="err-msg">Enter a rate greater than 0</div>
-      </div>
-      <div class="field" id="f-setLimit">
-        <label>Weekly allowed hours</label>
-        <input id="setLimit" type="number" inputmode="decimal" value="${PROFILE.weeklyLimit}">
-        <div class="err-msg">Enter hours greater than 0</div>
-      </div>
+      <div class="field" id="f-setName"><label>Your name</label><input id="setName" value="${PROFILE.employeeName||''}" autocomplete="given-name"><div class="err-msg">Name is required</div></div>
+      <div class="field" id="f-setEmployer"><label>Employer name</label><input id="setEmployer" value="${PROFILE.employerName||''}"></div>
+      <div class="field" id="f-setWorkplace"><label>Workplace / location</label><input id="setWorkplace" value="${PROFILE.workplace||''}"></div>
+      <div class="field" id="f-setRate"><label>Hourly rate (NZD)</label><input id="setRate" type="number" inputmode="decimal" value="${PROFILE.hourlyRate}"><div class="err-msg">Enter a rate greater than 0</div></div>
+      <div class="field" id="f-setLimit"><label>Weekly allowed hours</label><input id="setLimit" type="number" inputmode="decimal" value="${PROFILE.weeklyLimit}"><div class="err-msg">Enter hours greater than 0</div></div>
       <button class="btn btn-primary" onclick="saveSettings()">Save settings</button>
       <div id="savedMsg" style="text-align:center;color:var(--teal);font-size:13px;margin-top:10px;min-height:20px;"></div>
     </div>
-
     <div class="card">
-      <h2>Google account</h2>
-      <div class="muted" style="margin-bottom:12px;">
-        Signed in as <strong>${GOOGLE_USER?.email||LS.get('wt_gemail')||'—'}</strong><br>
-        Only this account can unlock WorkTrack on this device.
+      <h2>Account</h2>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+        ${GOOGLE_USER?.picture?`<img src="${GOOGLE_USER.picture}" style="width:44px;height:44px;border-radius:50%;border:2px solid var(--line);">`:''}
+        <div><div style="font-weight:600;font-size:14px;">${GOOGLE_USER?.name||PROFILE.employeeName}</div><div class="muted">${GOOGLE_USER?.email||''}</div></div>
       </div>
-      <div class="btn-row">
-        <button class="btn btn-ghost" onclick="signOut()">Sign out</button>
-        <button class="btn btn-danger" onclick="revokeGoogleAccess()">Unlink account</button>
-      </div>
+      <div class="muted" style="margin-bottom:12px;">All data syncs automatically across your devices via Firestore.</div>
+      <button class="btn btn-danger" onclick="signOut()">Sign out</button>
     </div>
-
-    <div class="card">
-      <h2>Google Client ID</h2>
-      <div class="muted" style="margin-bottom:10px;">Change only if you move this app to a new domain.</div>
-      <div class="field" id="f-gcid">
-        <label>Client ID</label>
-        <input id="gcidInput" value="${gcid}" autocomplete="off" autocorrect="off" spellcheck="false" style="font-size:12px;">
-        <div class="err-msg">Enter a valid Client ID</div>
-      </div>
-      <button class="btn btn-ghost" onclick="updateClientId()">Update Client ID</button>
-    </div>
-
     <div class="card">
       <h2>Danger zone</h2>
-      <button class="btn btn-danger" onclick="clearAllData()">Clear all data</button>
+      <button class="btn btn-danger" onclick="clearAllData()">Delete all my data</button>
     </div>`;
 }
 
-function saveSettings(){
+async function saveSettings(){
   const okName  = validateRequired('f-setName','setName','Name is required');
-  const okRate  = validatePositiveNumber('f-setRate','setRate','Enter a rate greater than 0');
-  const okLimit = validatePositiveNumber('f-setLimit','setLimit','Enter hours greater than 0');
+  const okRate  = validatePositive('f-setRate','setRate','Enter a rate greater than 0');
+  const okLimit = validatePositive('f-setLimit','setLimit','Enter hours greater than 0');
   if(!okName||!okRate||!okLimit) return;
   PROFILE.employeeName = document.getElementById('setName').value.trim();
   PROFILE.employerName = document.getElementById('setEmployer').value.trim();
   PROFILE.workplace    = document.getElementById('setWorkplace').value.trim();
   PROFILE.hourlyRate   = parseFloat(document.getElementById('setRate').value);
   PROFILE.weeklyLimit  = parseFloat(document.getElementById('setLimit').value);
-  saveProfile(); updateAvatar();
+  await fsaveProfile();
+  updateAvatar();
   const msg=document.getElementById('savedMsg'); msg.textContent='Saved ✓';
   setTimeout(()=>msg.textContent='',2000);
 }
 
-function updateClientId(){
-  const val=document.getElementById('gcidInput').value.trim();
-  if(!val||!val.includes('.apps.googleusercontent.com')){
-    fieldErr('f-gcid','Enter a valid Client ID ending in .apps.googleusercontent.com'); return;
-  }
-  fieldOk('f-gcid');
-  LS.set('wt_gcid',val);
-  toast('Client ID updated — reload to apply');
+async function clearAllData(){
+  if(!confirm('Delete ALL your entries, payments, and settings from the cloud? This cannot be undone.')) return;
+  const uid=auth.currentUser?.uid; if(!uid) return;
+  // Delete all entries
+  const entries=await userRef().collection('entries').get();
+  const batch=db.batch();
+  entries.docs.forEach(d=>batch.delete(d.ref));
+  // Delete all payments
+  const payments=await userRef().collection('payments').get();
+  payments.docs.forEach(d=>batch.delete(d.ref));
+  // Reset profile
+  batch.set(userRef(),{ profile:{ hourlyRate:24,weeklyLimit:25,employeeName:'',employerName:'',workplace:'' }, activeEntry:null });
+  await batch.commit();
+  toast('All data deleted');
+  ENTRIES=[]; PAYMENTS=[]; activeEntry=null;
+  PROFILE={ hourlyRate:24, weeklyLimit:25, employeeName:'', employerName:'', workplace:'' };
+  clearListeners();
+  await auth.signOut();
+  showScreen('signInScreen');
 }
-
-function clearAllData(){
-  if(!confirm('Delete ALL entries, payments, and settings? This cannot be undone.')) return;
-  ['wt_profile','wt_entries','wt_payments','wt_active'].forEach(k=>LS.remove(k));
-  location.reload();
-}
-
-// ── Start ──
-// Pre-seed the Client ID so the setup screen is never shown
-if(!LS.get('wt_gcid')) LS.set('wt_gcid','198805119020-aggfkvhsfrkbjsot2c602bn79cq4qom1.apps.googleusercontent.com');
-boot();
 </script>
 </body>
 </html>
