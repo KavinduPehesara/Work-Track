@@ -317,9 +317,7 @@ async function signInWithGoogle(){
   const provider = new firebase.auth.GoogleAuthProvider();
   document.getElementById('signInError').classList.add('hidden');
   try {
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    if(isMobile){ await auth.signInWithRedirect(provider); }
-    else         { await auth.signInWithPopup(provider); }
+    await auth.signInWithPopup(provider);
   } catch(e){
     const el=document.getElementById('signInError');
     el.textContent = e.message; el.classList.remove('hidden');
